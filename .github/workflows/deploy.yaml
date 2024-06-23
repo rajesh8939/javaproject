@@ -20,17 +20,8 @@ jobs:
           java-version: '17'
 
       - name: Build with Maven
-        run: mvn clean package
-
-      - name: Log in to Docker Hub
-        run: echo ${{ secrets.DOCKER_HUB_PASSWORD }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
-
-      - name: Build Docker image
-        run: docker build -t my-java-app:${{ github.sha }} .
-
-      - name: Push Docker image
-        run: docker push my-java-app:${{ github.sha }}
-
+        run: mvn -B package --file pom.xml
+        
   deploy:
     runs-on: ubuntu-latest
     needs: build
