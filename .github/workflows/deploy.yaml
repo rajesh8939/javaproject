@@ -49,6 +49,7 @@ jobs:
         run: |
           echo "${{ secrets.EC2_KEY }}" > private_key.pem
           chmod 600 private_key.pem
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts  # Add EC2 host key to known_hosts
           scp -i private_key.pem target/*.jar $EC2_USER@$EC2_HOST:/home/$EC2_USER/
 
       - name: Deploy to EC2
@@ -62,4 +63,5 @@ jobs:
             pkill -f 'java -jar' || true
             nohup java -jar /home/$EC2_USER/*.jar > app.log 2>&1 &
           EOF
+
 
