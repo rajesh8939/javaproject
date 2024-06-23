@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Java CI/CD Pipeline
 
 on:
   push:
@@ -20,8 +20,14 @@ jobs:
           java-version: '17'
 
       - name: Build with Maven
-        run: mvn -B package --file pom.xml
-        
+        run: mvn -B clean package --file pom.xml
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: java-app
+          path: target/*.jar
+
   deploy:
     runs-on: ubuntu-latest
     needs: build
@@ -30,15 +36,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: SSH into EC2 instance and deploy
-        uses: appleboy/ssh-action@v0.1.5
+      - name: Download build artifact
+        uses: actions/download-artifact@v2
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          passphrase: ${{ secrets.EC2_PASSPHRASE }}
-          script: |
-            docker pull my-java-app:${{ github.sha }}
-            docker stop my-java-app || true
-            docker rm my-java-app || true
-            docker run -d --name my-java-app -p 8080:8080 my-java-app:${{ github.sha }}
+          name: java-app
+
+      - name: Copy artifact to EC2
+        env:
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_KEY: ${{ secrets.EC2_KEY }}
+        run: |
+          echo "${{ secrets.EC2_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
+          scp -i private_key.pem target/*.jar $EC2_USER@$EC2_HOST:/home/$EC2_USER/
+
+      - name: Deploy to EC2
+        env:
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_KEY: ${{ secrets.EC2_KEY }}
+        run: |
+          ssh -i private_key.pem $EC2_USER@$EC2_HOST << 'EOF'
+            # Commands to stop the current application, if any, and start the new one
+            pkill -f 'java -jar' || true
+            nohup java -jar /home/$EC2_USER/*.jar > app.log 2>&1 &
+          EOF
+
